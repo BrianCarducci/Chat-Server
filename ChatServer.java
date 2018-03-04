@@ -64,13 +64,12 @@ public class ChatServer {
             try {
                 out = new PrintWriter(socket.getOutputStream(), true);
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                out.println("connected to server...");
 
                 while (!done) {
                     String line = in.readLine();
                     if(line == null) break;
-                    textArea.append(line + "\n");
-                    processLine(line);
+                    textArea.append(name + ": " + line + "\n");
+                    out.println(name + ": " + line + "\n");
                 }
 
                 } catch (IOException e) {
@@ -99,7 +98,7 @@ public class ChatServer {
         SwingUtilities.invokeLater(() -> {
             textArea.setLineWrap(true);
             textArea.setEditable(false);
-
+            textArea.setFont(new Font("Arial", Font.PLAIN, 30));
             JScrollPane scrollPane = new JScrollPane(textArea);
 
             BorderLayout layout = new BorderLayout();
