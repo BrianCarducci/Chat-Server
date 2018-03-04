@@ -5,6 +5,9 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashSet;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
 
 public class ChatServer {
 
@@ -12,6 +15,8 @@ public class ChatServer {
     public int port;
     public boolean done;
     public HashSet<Connection> connection;
+    static JTextArea textArea = new JTextArea();
+
 
     public ChatServer(int port) {
     	this.port = port;
@@ -19,7 +24,7 @@ public class ChatServer {
     	this.connection = new HashSet<Connection>();
     }
 
-    public void addConnection(Socket clientSocket) {
+    public synchronized void addConnection(Socket clientSocket) {
     	String name = clientSocket.getInetAddress().toString();
     	System.out.println("chat server connecting to: " + name);
     	Connection c = new Connection(clientSocket, name);
@@ -28,16 +33,13 @@ public class ChatServer {
     }
 
     public void run() {
-    	System.out.println("Chat server running");
+        textArea.append("Server Running... \n");
     	try {
     		ServerSocket serverSocket = new ServerSocket(port);
 
     		while (!done) {
-    			System.out.println("in loop");
     			Socket clientSocket = serverSocket.accept();
-    			System.out.println("accepted");
     			addConnection(clientSocket);
-    			System.out.println("added");
     		}
     	} catch (Exception e) {
     		System.err.println("Error occured creating server socket: " + e.getMessage());
@@ -62,10 +64,12 @@ public class ChatServer {
             try {
                 out = new PrintWriter(socket.getOutputStream(), true);
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                out.println("running...");
+                out.println("connected to server...");
 
                 while (!done) {
                     String line = in.readLine();
+                    if(line == null) break;
+                    textArea.append(line + "\n");
                     processLine(line);
                 }
 
@@ -85,14 +89,37 @@ public class ChatServer {
 
         public void processLine(String line) {
             if (line != null) {
-                out.print("gotcha buddy, your message: " + line);
+                out.println(line);
             }
         }
     }
 
 
     public static void main(String[] args) {
-        System.out.println("kk");
+        SwingUtilities.invokeLater(() -> {
+            textArea.setLineWrap(true);
+            textArea.setEditable(false);
+
+            JScrollPane scrollPane = new JScrollPane(textArea);
+
+            BorderLayout layout = new BorderLayout();
+            layout.setHgap(10);
+            layout.setVgap(10);
+
+            JPanel panel = new JPanel();
+            panel.setLayout(layout);  
+            panel.setSize(300,600);
+            panel.add(scrollPane, BorderLayout.CENTER);
+            panel.setOpaque(true); 
+            
+            JFrame frame = new JFrame("Chat Server");
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setContentPane(panel);
+            frame.pack();
+            frame.setVisible(true);
+            frame.setSize(300, 600);
+        });
+
         ChatServer chatServer = new ChatServer(DEFAULT_PORT);
         chatServer.run();
     }
