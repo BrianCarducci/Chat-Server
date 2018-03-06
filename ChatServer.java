@@ -118,9 +118,11 @@ class Connection extends Thread {
     }
 
     public void processLine(String line) {
-        line = line.substring(0, line.indexOf(' '));
+        int splitIndex = line.indexOf(' ');
+        String protocol = line.substring(0, splitIndex);
+        String message = line.substring(splitIndex, line.length());
         System.out.println(line);
-        switch (line) {
+        switch (protocol) {
             case "ENTER": ;
                 break;
             case "EXIT": ;
@@ -130,11 +132,11 @@ class Connection extends Thread {
             case "TRANSMIT": ;
                 break;
         }
-        if (line != null) {
-            for(PrintWriter client : clients){
-                client.println(line);
-            }
+
+        for(PrintWriter client : clients){
+            client.println(message);
         }
+
     }
 }
 
