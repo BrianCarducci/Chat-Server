@@ -68,6 +68,8 @@ class Connection extends Thread {
         try {
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+
             
             synchronized(clients){
                 clients.add(out);
@@ -132,6 +134,9 @@ public static void main(String[] args) {
         frame.pack();
         frame.setVisible(true);
         frame.setSize(300, 600);
+
+
+
     });
 
     ChatServer chatServer = new ChatServer(DEFAULT_PORT);

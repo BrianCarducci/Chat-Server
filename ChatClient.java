@@ -28,7 +28,7 @@ public class ChatClient {
         public void keyPressed(KeyEvent e) {
           int keys = e.getKeyCode();
           if (keys == KeyEvent.VK_ENTER) {
-            out.println(clientName + ": " + chatBox.getText().replace("\n", ""));
+            out.println("TRANSMIT " + clientName + ": " + chatBox.getText().replace("\n", ""));
             chatBox.setText("");
             chatBox.setCaretPosition(0);
           }
@@ -49,6 +49,8 @@ public class ChatClient {
             out.println(clientName + " has just connected to the server");
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
+            out.println("ENTER " + clientName);
+
             while(true){
                 String line = in.readLine();
                 if(line == null) break;
@@ -64,8 +66,10 @@ public class ChatClient {
         }
 
         try {
+            out.println("EXIT " + clientName);
             if (out != null) out.close();
 	        if (in != null) in.close();
+
 	        if (socket != null) socket.close();
 	    } catch (IOException e) {
 	        System.out.println("Error closing the streams.");
@@ -119,6 +123,13 @@ public class ChatClient {
             int x = (int) rect.getMaxX() - frame.getWidth();
             int y = 0;
             frame.setLocation(x, y);
+
+            frame.addWindowListener(new java.awt.event.WindowAdapter() {
+                public void windowClosing(WindowEvent windowEvent) {
+                    out.println("EXIT");
+                    System.exit(0);
+                }
+            });
         });
 
         ChatClient chatClient = new ChatClient(hostname, port, clientName);
