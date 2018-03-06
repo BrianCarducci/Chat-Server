@@ -101,7 +101,35 @@ class Connection extends Thread {
         }
     }
 
+    public void processProtocol(String protocol) {
+
+        protocol = protocol.substring(0, protocol.indexOf(' '));
+        System.out.println(protocol);
+        switch (protocol) {
+            case "ENTER": ;
+                break;
+            case "EXIT": ;
+                break;
+            case "JOIN": ;
+                break;
+            case "TRANSMIT": ;
+                break;
+        }
+    }
+
     public void processLine(String line) {
+        line = line.substring(0, line.indexOf(' '));
+        System.out.println(line);
+        switch (line) {
+            case "ENTER": ;
+                break;
+            case "EXIT": ;
+                break;
+            case "JOIN": ;
+                break;
+            case "TRANSMIT": ;
+                break;
+        }
         if (line != null) {
             for(PrintWriter client : clients){
                 client.println(line);
