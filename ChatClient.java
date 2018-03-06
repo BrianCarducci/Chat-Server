@@ -28,7 +28,7 @@ public class ChatClient {
         public void keyPressed(KeyEvent e) {
           int keys = e.getKeyCode();
           if (keys == KeyEvent.VK_ENTER) {
-            out.println(clientName + ": " + chatBox.getText());
+            out.println(clientName + ": " + chatBox.getText().replace("\n", ""));
             chatBox.setText("");
             chatBox.setCaretPosition(0);
           }
@@ -46,14 +46,13 @@ public class ChatClient {
         try {
             socket = new Socket(hostname, port);
             out = new PrintWriter(socket.getOutputStream(), true);
-            textArea.append(clientName + " has just connected to the server\n");
             out.println(clientName + " has just connected to the server");
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            while(!socket.isClosed()){
+            while(true){
                 String line = in.readLine();
                 if(line == null) break;
-                System.out.println(line);
+                textArea.append(line + "\n");
             }
 
         } catch (UnknownHostException e) {
