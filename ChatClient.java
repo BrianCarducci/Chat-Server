@@ -82,6 +82,19 @@ public class ChatClient {
 
         JScrollPane scrollPane = new JScrollPane(textArea);
         JScrollPane chatScrollPane = new JScrollPane(chatBox);
+        JTextField room = new JTextField();
+        room.addKeyListener(new KeyAdapter() {
+         public void keyPressed(KeyEvent e) {
+            if (e.getKeyCode()==KeyEvent.VK_ENTER) {
+                if(room.getText().matches("^[a-zA-Z0-9_]+$")){
+                    out.println("JOIN " + room.getText());
+                }else{
+                    textArea.append("*INVALID : ROOM MUST BE AN ALPHANUMERIC STRING*\n");
+                }
+               room.setText("");
+            }
+         }
+      });
 
         BorderLayout layout = new BorderLayout();
         layout.setHgap(10);
@@ -92,6 +105,7 @@ public class ChatClient {
         panel.setSize(300,600);
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(chatScrollPane, BorderLayout.SOUTH);
+        panel.add(room, BorderLayout.NORTH);
         panel.setOpaque(true);
 
 

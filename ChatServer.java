@@ -14,7 +14,7 @@ import java.util.ArrayList;
 public class ChatServer {
 
     private static final int DEFAULT_PORT = 1518;
-    private final List<PrintWriter> clients = new ArrayList<>();
+    private final List<Connection> clients = new ArrayList<>();
     private final List<String> usernames = new ArrayList<>();
     private final JTextArea textArea = new JTextArea();
     private final JLabel clientsLabel = new JLabel("Clients connected: 0");
@@ -33,6 +33,10 @@ public class ChatServer {
                 Socket clientSocket = serverSocket.accept();
                 String name = clientSocket.getInetAddress().toString();
                 Connection c = new Connection(clientSocket, name);
+                synchronized(clients){
+                    clients.add(c);
+                    clientsLabel.setText("Clients connected: " + clients.size());
+                }
                 c.start();
             }
         } catch (Exception e) {
@@ -42,10 +46,11 @@ public class ChatServer {
 
     private class Connection extends Thread {
         Socket socket;
-        PrintWriter out;
+        public PrintWriter out;
         BufferedReader in;
         String name = "";
-        String username = "";
+        public String username = "";
+        public String roomId = "0";
 
         public Connection(Socket socket, String name) {
             this.socket = socket;
@@ -56,11 +61,6 @@ public class ChatServer {
             try {
                 out = new PrintWriter(socket.getOutputStream(), true);
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-                synchronized(clients){
-                    clients.add(out);
-                    clientsLabel.setText("Clients connected: " + clients.size());
-                }
 
                 while (true) {
                     String line = in.readLine();
@@ -79,7 +79,7 @@ public class ChatServer {
         private void closeResources(){
             try{
                 synchronized(clients){
-                    clients.remove(out);
+                    clients.remove(this);
                     clientsLabel.setText("Clients connected: " + clients.size());
                 }
                 if (in != null) in.close();
@@ -91,22 +91,23 @@ public class ChatServer {
         }
 
         private void processLine(String line) {
-            String message = "";
             if(line.startsWith("ENTER")){
                 this.username = line.substring(line.indexOf(' ') + 1, line.length());   
-                message = this.username + " has entered the room";
+                messageClients(this.username + " has entered the room");
             }else if(line.startsWith("EXIT")){
                 closeResources();
-                message = this.username + " has left the room";
+                messageClients(this.username + " has left the room");
             }else if(line.startsWith("JOIN")){
-
+                roomId = line.substring(line.indexOf(' ') + 1, line.length());
             }else if(line.startsWith("TRANSMIT")){
-                message = this.username + ": " + line.substring(line.indexOf(' ') + 1, line.length());;
+                messageClients(this.username + ": " + line.substring(line.indexOf(' ') + 1, line.length()));
             }
+        }
 
-            for(PrintWriter client : clients){
-                if(client != null){
-                    client.println(message);
+        private void messageClients(String message){
+            for(Connection client : clients){
+                if(client != null && client.out != null && roomId.equals(client.roomId)){
+                    client.out.println(message);
                 }
             }
         }
