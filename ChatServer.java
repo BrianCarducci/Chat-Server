@@ -98,7 +98,9 @@ public class ChatServer {
                 closeResources();
                 messageClients(this.username + " has left the room");
             }else if(line.startsWith("JOIN")){
+                messageClients(username + " has left the room");
                 roomId = line.substring(line.indexOf(' ') + 1, line.length());
+                messageClients(username + " has entered the room");
             }else if(line.startsWith("TRANSMIT")){
                 messageClients(this.username + ": " + line.substring(line.indexOf(' ') + 1, line.length()));
             }
