@@ -13,136 +13,106 @@ import java.util.ArrayList;
 
 public class ChatServer {
 
-    public static final int DEFAULT_PORT = 1518;
-    public int port;
-    public boolean done;
-    public List<PrintWriter> clients = new ArrayList<>();
-    public List<String> usernames = new ArrayList<>();
-    static JTextArea textArea = new JTextArea();
+    private static final int DEFAULT_PORT = 1518;
+    private final List<PrintWriter> clients = new ArrayList<>();
+    private final List<String> usernames = new ArrayList<>();
+    private final JTextArea textArea = new JTextArea();
+    private final JLabel clientsLabel = new JLabel("Clients connected: 0");
 
-
-    public ChatServer(int port) {
-    	this.port = port;
-    	this.done = false;
+     public static void main(String[] args) {
+        ChatServer chatServer = new ChatServer();
+        chatServer.initGUI();
+        chatServer.run();
     }
 
-    public void addConnection(Socket clientSocket) {
-    	String name = clientSocket.getInetAddress().toString();
-    	System.out.println("chat server connecting to: " + name);
-    	Connection c = new Connection(clientSocket, name);
-    	c.start();
-    }
-
-    public void run() {
-        textArea.append("Server Running...\n");
+    private void run() {
         try {
-          ServerSocket serverSocket = new ServerSocket(port);
-
-          while (!done) {
-             Socket clientSocket = serverSocket.accept();
-             String name = clientSocket.getInetAddress().toString();
-             System.out.println("chat server connecting to: " + name);
-             Connection c = new Connection(clientSocket, name);
-             c.start();
-         }
-     } catch (Exception e) {
-      System.err.println("Error occured creating server socket: " + e.getMessage());
-    		//System.exit(1);
-  }
-}
-
-class Connection extends Thread {
-    Socket socket;
-    PrintWriter out;
-    BufferedReader in;
-    boolean done;
-    String name;
-
-    public Connection(Socket socket, String name) {
-        this.socket = socket;
-        this.name = name;
-        done = false;
+            ServerSocket serverSocket = new ServerSocket(DEFAULT_PORT);
+            textArea.append("Server Running at localhost:" + DEFAULT_PORT + "\n");
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                String name = clientSocket.getInetAddress().toString();
+                Connection c = new Connection(clientSocket, name);
+                c.start();
+            }
+        } catch (Exception e) {
+            System.err.println("Error occured creating server socket: " + e.getMessage());
+        }
     }
 
-    public void run() {
-        try {
-            out = new PrintWriter(socket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    private class Connection extends Thread {
+        Socket socket;
+        PrintWriter out;
+        BufferedReader in;
+        String name = "";
+        String username = "";
 
+        public Connection(Socket socket, String name) {
+            this.socket = socket;
+            this.name = name;
+        }
 
-            
-            synchronized(clients){
-                clients.add(out);
-            }
+        public void run() {
+            try {
+                out = new PrintWriter(socket.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            while (!done) {
-                String line = in.readLine();
-                if(line == null) break;
-                textArea.append(line + "\n");
-                processLine(line);
-            }
-
-        } catch (IOException e) {
-            System.out.println("Error connecting, Terminating. " + e.getMessage());
-        }finally{
-            try{
-                System.out.println("shutting down");
-                if (in != null) in.close();
-                if (out != null){
-                    synchronized(clients){
-                        clients.remove(out);
-                    }
-                    out.close();
+                synchronized(clients){
+                    clients.add(out);
+                    clientsLabel.setText("Clients connected: " + clients.size());
                 }
+
+                while (true) {
+                    String line = in.readLine();
+                    if(line == null) break;
+                    processLine(line);
+                    textArea.append(username + ": " + line + "\n");
+                }
+
+            } catch (IOException e) {
+                System.out.println("Error connecting, Terminating. " + e.getMessage());
+            }finally{
+                closeResources();
+            }
+        }
+
+        private void closeResources(){
+            try{
+                synchronized(clients){
+                    clients.remove(out);
+                    clientsLabel.setText("Clients connected: " + clients.size());
+                }
+                if (in != null) in.close();
+                if (out != null) out.close();
                 if (socket != null) socket.close();
             }catch(IOException e){
                 System.out.println(e);
             }
         }
-    }
 
-    public void processProtocol(String protocol) {
+        private void processLine(String line) {
+            String message = "";
+            if(line.startsWith("ENTER")){
+                this.username = line.substring(line.indexOf(' ') + 1, line.length());   
+                message = this.username + " has entered the room";
+            }else if(line.startsWith("EXIT")){
+                closeResources();
+                message = this.username + " has left the room";
+            }else if(line.startsWith("JOIN")){
 
-        protocol = protocol.substring(0, protocol.indexOf(' '));
-        System.out.println(protocol);
-        switch (protocol) {
-            case "ENTER": ;
-                break;
-            case "EXIT": ;
-                break;
-            case "JOIN": ;
-                break;
-            case "TRANSMIT": ;
-                break;
+            }else if(line.startsWith("TRANSMIT")){
+                message = this.username + ": " + line.substring(line.indexOf(' ') + 1, line.length());;
+            }
+
+            for(PrintWriter client : clients){
+                if(client != null){
+                    client.println(message);
+                }
+            }
         }
     }
 
-    public void processLine(String line) {
-        int splitIndex = line.indexOf(' ');
-        String protocol = line.substring(0, splitIndex);
-        String message = line.substring(splitIndex, line.length());
-        System.out.println(line);
-        switch (protocol) {
-            case "ENTER": ;
-                break;
-            case "EXIT": ;
-                break;
-            case "JOIN": ;
-                break;
-            case "TRANSMIT": ;
-                break;
-        }
-
-        for(PrintWriter client : clients){
-            client.println(message);
-        }
-
-    }
-}
-
-
-public static void main(String[] args) {
-    SwingUtilities.invokeLater(() -> {
+    private void initGUI(){
         textArea.setLineWrap(true);
         textArea.setEditable(false);
 
@@ -156,6 +126,7 @@ public static void main(String[] args) {
         panel.setLayout(layout);  
         panel.setSize(300,600);
         panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(clientsLabel, BorderLayout.NORTH);
         panel.setOpaque(true); 
 
         JFrame frame = new JFrame("Chat Server");
@@ -164,12 +135,5 @@ public static void main(String[] args) {
         frame.pack();
         frame.setVisible(true);
         frame.setSize(300, 600);
-
-
-
-    });
-
-    ChatServer chatServer = new ChatServer(DEFAULT_PORT);
-    chatServer.run();
-}
+    }
 }
