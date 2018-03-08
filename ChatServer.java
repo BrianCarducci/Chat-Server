@@ -64,7 +64,10 @@ public class ChatServer {
 
                 while (true) {
                     String line = in.readLine();
-                    if(line == null) break;
+                    if(line == null) {
+                        processLine("EXIT");
+                        break;   
+                    }
                     processLine(line);
                     textArea.append(username + ": " + line + "\n");
                 }
@@ -92,23 +95,32 @@ public class ChatServer {
 
         private void processLine(String line) {
             if(line.startsWith("ENTER")){
-                this.username = line.substring(line.indexOf(' ') + 1, line.length());   
-                messageClients(this.username + " has entered the room");
+                this.username = line.substring(line.indexOf(' ') + 1, line.length()).toUpperCase();
+                messageClientsInvlusive(this.username + " has entered the room ");
             }else if(line.startsWith("EXIT")){
                 closeResources();
-                messageClients(this.username + " has left the room");
+                messageClientsExclusive(this.username + " has left the room");
             }else if(line.startsWith("JOIN")){
-                messageClients(username + " has left the room");
+                messageClientsExclusive(username + " has left the room");
                 roomId = line.substring(line.indexOf(' ') + 1, line.length());
-                messageClients(username + " has entered the room");
+                messageClientsExclusive(username + " has entered the room");
+                out.println("\nYou have switched to room " + roomId);
             }else if(line.startsWith("TRANSMIT")){
-                messageClients(this.username + ": " + line.substring(line.indexOf(' ') + 1, line.length()));
+                messageClientsInvlusive(this.username + ": " + line.substring(line.indexOf(' ') + 1, line.length()));
             }
         }
 
-        private void messageClients(String message){
+        private void messageClientsInvlusive(String message){
             for(Connection client : clients){
                 if(client != null && client.out != null && roomId.equals(client.roomId)){
+                    client.out.println(message);
+                }
+            }
+        }
+
+        private void messageClientsExclusive(String message){
+            for(Connection client : clients){
+                if(client != null && client.out != null && client.out != out && roomId.equals(client.roomId)){
                     client.out.println(message);
                 }
             }
