@@ -83,16 +83,16 @@ public class ChatClient {
         JScrollPane scrollPane = new JScrollPane(textArea);
         JScrollPane chatScrollPane = new JScrollPane(chatBox);
         JTextField roomInput = new JTextField();
-        roomInput.setPreferredSize(new Dimension(150, 20));
-        JLabel roomLabel = new JLabel("0");
-        roomLabel.setPreferredSize(new Dimension(50, 20));
+        roomInput.setPreferredSize(new Dimension(100, 20));
+        JLabel roomLabel = new JLabel("Room: 0");
+        roomLabel.setPreferredSize(new Dimension(100, 20));
 
         roomInput.addKeyListener(new KeyAdapter() {
          public void keyPressed(KeyEvent e) {
             if (e.getKeyCode()==KeyEvent.VK_ENTER) {
                 if(roomInput.getText().matches("^[a-zA-Z0-9_]+$")){
                     out.println("JOIN " + roomInput.getText());
-                    roomLabel.setText(roomInput.getText());
+                    roomLabel.setText("Room: " + roomInput.getText());
                 }else{
                     textArea.append("*INVALID : ROOM MUST BE AN ALPHANUMERIC STRING*\n");
                 }
@@ -143,6 +143,8 @@ public class ChatClient {
                 System.exit(0);
             }
         });
+
+        chatBox.requestFocus();
 
     }
 
