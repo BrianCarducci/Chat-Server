@@ -13,94 +13,67 @@ import java.awt.*;
 import java.awt.event.*;
 
 public class ChatClient {
-    private final int IFW = JComponent.WHEN_IN_FOCUSED_WINDOW;
-    private static final int port = 1518;
+    private static final int PORT = 1518;
     private String hostname;
-    private String clientName;
+    private String username;
     private Socket socket = null;
-    private PrintWriter out = null;
-    private BufferedReader in = null;
-    private JTextArea textArea = new JTextArea();
-    private JTextArea chatBox = new JTextArea(3,1);
+    private PrintWriter output = null;
+    private BufferedReader input = null;
+    private JTextArea messageBoard = new JTextArea();
+    private JTextArea messageInput = new JTextArea(3,1);
+
+    public ChatClient(String hostname, String username) {
+        this.hostname = hostname;
+        this.username = username;
+    }
 
     public static void main(String[] args) {
         ChatClient chatClient = new ChatClient(args[0], args[1]);
         chatClient.initGUI();        
-        chatClient.run();
+        chatClient.initClientSocket();
     }
-
-    public ChatClient(String hostname, String clientName) {
-        this.hostname = hostname;
-        this.clientName = clientName;
-    }
-
-
-    public void run() {
-        try {
-            socket = new Socket(hostname, port);
-            out = new PrintWriter(socket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-            out.println("ENTER " + clientName);
-
-            while(true){
-                String line = in.readLine();
-                if(line == null) break;
-                textArea.append(line + "\n");
-            }
-
-            out.println("EXIT");
-
-        } catch (UnknownHostException e) {
-            System.out.println("Unknown host: " + hostname);
-            System.out.println(e.getMessage());
-        } catch (IOException e) {
-            System.out.println("IO Error: Error establishing communication with server.");
-            System.out.println(e.getMessage());
-        }
-
-        try {
-            if (out != null) out.close();
-            if (in != null) in.close();
-            if (socket != null) socket.close();
-        } catch (Exception e) {
-            System.out.println("Error closing the streams.");
-        }
-    }
-
 
     private void initGUI(){
-        textArea.setLineWrap(true);
-        textArea.setEditable(false);
+        messageBoard.setLineWrap(true);
+        messageBoard.setEditable(false);
 
-        chatBox.setLineWrap(true);
-        chatBox.setWrapStyleWord(true);
-        chatBox.setEditable(true);
-        chatBox.setPreferredSize(new Dimension(300, 50));
-        chatBox.setCaretPosition(0);
-        chatBox.addKeyListener(new ReturnAction());
+        messageInput.setLineWrap(true);
+        messageInput.setWrapStyleWord(true);
+        messageInput.setEditable(true);
+        messageInput.setPreferredSize(new Dimension(300, 50));
+        messageInput.setCaretPosition(0);
+        messageInput.addKeyListener(new KeyAdapter() {
+            public void keyPressed(KeyEvent e) {
+                int keys = e.getKeyCode();
+                if (keys == KeyEvent.VK_ENTER) {
+                    output.println("TRANSMIT " + messageInput.getText().replace("\n", ""));
+                    messageInput.setText("");
+                    messageInput.setCaretPosition(0);
+                }
+            }
+        });
 
-        JScrollPane scrollPane = new JScrollPane(textArea);
-        JScrollPane chatScrollPane = new JScrollPane(chatBox);
-        JTextField roomInput = new JTextField();
-        roomInput.setPreferredSize(new Dimension(100, 20));
+        JScrollPane scrollPane = new JScrollPane(messageBoard);
+        JScrollPane chatScrollPane = new JScrollPane(messageInput);
+
         JLabel roomLabel = new JLabel("Room: 0");
         roomLabel.setPreferredSize(new Dimension(100, 20));
 
+        JTextField roomInput = new JTextField();
+        roomInput.setPreferredSize(new Dimension(100, 20));
         roomInput.addKeyListener(new KeyAdapter() {
-         public void keyPressed(KeyEvent e) {
-            if (e.getKeyCode()==KeyEvent.VK_ENTER) {
-                if(roomInput.getText().matches("^[a-zA-Z0-9_]+$")){
-                    out.println("JOIN " + roomInput.getText());
-                    roomLabel.setText("Room: " + roomInput.getText());
-                }else{
-                    textArea.append("*INVALID : ROOM MUST BE AN ALPHANUMERIC STRING*\n");
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode()==KeyEvent.VK_ENTER) {
+                    if(roomInput.getText().matches("^[a-zA-Z0-9_]+$")){
+                        output.println("JOIN " + roomInput.getText().replaceAll("\\s+",""));
+                        roomLabel.setText("Room: " + roomInput.getText().replaceAll("\\s+",""));
+                    }else{
+                        messageBoard.append("*Invalid* : Room must be an alphanumeric string\n");
+                    }
+                   roomInput.setText("");
                 }
-               roomInput.setText("");
             }
-         }
-      });
-
+        });
 
         JPanel roomPanel = new JPanel();
         roomPanel.add(roomLabel);
@@ -118,7 +91,9 @@ public class ChatClient {
         panel.add(roomPanel, BorderLayout.NORTH);
         panel.setOpaque(true);
 
-
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        GraphicsDevice defaultScreen = ge.getDefaultScreenDevice();
+        Rectangle rect = defaultScreen.getDefaultConfiguration().getBounds();
 
         JFrame frame = new JFrame("Chat Client");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -126,17 +101,11 @@ public class ChatClient {
         frame.pack();
         frame.setVisible(true);
         frame.setSize(300, 600);
-        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        GraphicsDevice defaultScreen = ge.getDefaultScreenDevice();
-        Rectangle rect = defaultScreen.getDefaultConfiguration().getBounds();
-        int x = (int) rect.getMaxX() - frame.getWidth();
-        int y = 0;
-        frame.setLocation(x, y);
-
+        frame.setLocation((int) rect.getMaxX() - frame.getWidth(), 0);
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
             public void windowClosing(WindowEvent windowEvent) {
                 try{
-                    out.println("EXIT");
+                    output.println("EXIT");
                 }catch(Exception e){
                     System.out.println(e);
                 }
@@ -144,19 +113,62 @@ public class ChatClient {
             }
         });
 
-        chatBox.requestFocus();
-
+        messageInput.requestFocus();
     }
 
-    private class ReturnAction extends KeyAdapter {
-        @Override
-        public void keyPressed(KeyEvent e) {
-            int keys = e.getKeyCode();
-            if (keys == KeyEvent.VK_ENTER) {
-                out.println("TRANSMIT " + chatBox.getText().replace("\n", ""));
-                chatBox.setText("");
-                chatBox.setCaretPosition(0);
+    public void initClientSocket() {
+        try {
+            socket = new Socket(hostname, PORT);
+            output = new PrintWriter(socket.getOutputStream(), true);
+            input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            output.println("ENTER " + username);
+
+            while(true){
+                if(input.ready()){
+                    String line = input.readLine();
+                    if(line == null) break;
+                    processLine(line);
+                }
+            }
+
+            output.println("EXIT");
+        } catch (UnknownHostException e) {
+            System.out.println("Unknown host: " + hostname);
+            System.out.println(e.getMessage());
+        } catch (IOException e) {
+            System.out.println("IO Error: Error establishing communication with server.");
+            System.out.println(e.getMessage());
+        }finally{
+            try {
+                if (output != null) output.close();
+                if (input != null) input.close();
+                if (socket != null) socket.close();
+            } catch (Exception e) {
+                System.out.println("Error closing the streams.");
             }
         }
+    }
+
+    private void processLine(String inputLine){
+        if(inputLine.startsWith("ENTERING")){
+            String name = inputLine.substring(inputLine.indexOf(' ') + 1, inputLine.length());
+            addToMessageBoard(name + " has entered the room.");
+        }else if(inputLine.startsWith("EXITING")){
+            String name = inputLine.substring(inputLine.indexOf(' ') + 1, inputLine.length());
+            addToMessageBoard(name + " has left the room.");
+        }else if(inputLine.startsWith("NEWMESSAGE")){
+            inputLine = inputLine.substring(11, inputLine.length());
+            String name = inputLine.substring(0, inputLine.indexOf(' '));
+            addToMessageBoard(name + ": " + inputLine.substring(inputLine.indexOf(' ') + 1, inputLine.length()));
+        }else if(inputLine.startsWith("ACK JOIN")){
+            inputLine = inputLine.substring(9, inputLine.length());
+            addToMessageBoard("Successfully joined room " + inputLine + ".");
+        }else if(inputLine.startsWith("ACK ENTER")){
+            addToMessageBoard("Successfully connected to the server.");
+        }
+    }
+
+    private void addToMessageBoard(String message){
+        messageBoard.append(message + "\n");
     }
 }

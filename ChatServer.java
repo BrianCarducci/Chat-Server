@@ -4,7 +4,6 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashSet;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -12,126 +11,22 @@ import java.util.List;
 import java.util.ArrayList;
 
 public class ChatServer {
-
     private static final int DEFAULT_PORT = 1518;
-    private final List<Connection> clients = new ArrayList<>();
-    private final List<String> usernames = new ArrayList<>();
-    private final JTextArea textArea = new JTextArea();
-    private final JLabel clientsLabel = new JLabel("Clients connected: 0");
+    private final List<Connection> connectedClients = new ArrayList<>();
+    private final JTextArea transmissionLog = new JTextArea();
+    private final JLabel numberOfClientsLabel = new JLabel("Clients connected: 0");
 
-     public static void main(String[] args) {
+    public static void main(String[] args) {
         ChatServer chatServer = new ChatServer();
         chatServer.initGUI();
-        chatServer.run();
-    }
-
-    private void run() {
-        try {
-            ServerSocket serverSocket = new ServerSocket(DEFAULT_PORT);
-            textArea.append("Server Running at localhost:" + DEFAULT_PORT + "\n");
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                String name = clientSocket.getInetAddress().toString();
-                Connection c = new Connection(clientSocket, name);
-                synchronized(clients){
-                    clients.add(c);
-                    clientsLabel.setText("Clients connected: " + clients.size());
-                }
-                c.start();
-            }
-        } catch (Exception e) {
-            System.err.println("Error occured creating server socket: " + e.getMessage());
-        }
-    }
-
-    private class Connection extends Thread {
-        Socket socket;
-        public PrintWriter out;
-        BufferedReader in;
-        String name = "";
-        public String username = "";
-        public String roomId = "0";
-
-        public Connection(Socket socket, String name) {
-            this.socket = socket;
-            this.name = name;
-        }
-
-        public void run() {
-            try {
-                out = new PrintWriter(socket.getOutputStream(), true);
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-                while (true) {
-                    String line = in.readLine();
-                    if(line == null) {
-                        processLine("EXIT");
-                        break;   
-                    }
-                    processLine(line);
-                    textArea.append(username + ": " + line + "\n");
-                }
-
-            } catch (IOException e) {
-                System.out.println("Error connecting, Terminating. " + e.getMessage());
-            }finally{
-                closeResources();
-            }
-        }
-
-        private void closeResources(){
-            try{
-                synchronized(clients){
-                    clients.remove(this);
-                    clientsLabel.setText("Clients connected: " + clients.size());
-                }
-                if (in != null) in.close();
-                if (out != null) out.close();
-                if (socket != null) socket.close();
-            }catch(IOException e){
-                System.out.println(e);
-            }
-        }
-
-        private void processLine(String line) {
-            if(line.startsWith("ENTER")){
-                this.username = line.substring(line.indexOf(' ') + 1, line.length()).toUpperCase();
-                messageClientsInvlusive(this.username + " has entered the room ");
-            }else if(line.startsWith("EXIT")){
-                closeResources();
-                messageClientsExclusive(this.username + " has left the room");
-            }else if(line.startsWith("JOIN")){
-                messageClientsExclusive(username + " has left the room");
-                roomId = line.substring(line.indexOf(' ') + 1, line.length());
-                messageClientsExclusive(username + " has entered the room");
-                out.println("\nYou have switched to room " + roomId);
-            }else if(line.startsWith("TRANSMIT")){
-                messageClientsInvlusive(this.username + ": " + line.substring(line.indexOf(' ') + 1, line.length()));
-            }
-        }
-
-        private void messageClientsInvlusive(String message){
-            for(Connection client : clients){
-                if(client != null && client.out != null && roomId.equals(client.roomId)){
-                    client.out.println(message);
-                }
-            }
-        }
-
-        private void messageClientsExclusive(String message){
-            for(Connection client : clients){
-                if(client != null && client.out != null && client.out != out && roomId.equals(client.roomId)){
-                    client.out.println(message);
-                }
-            }
-        }
+        chatServer.initServerSocket();
     }
 
     private void initGUI(){
-        textArea.setLineWrap(true);
-        textArea.setEditable(false);
+        transmissionLog.setLineWrap(true);
+        transmissionLog.setEditable(false);
 
-        JScrollPane scrollPane = new JScrollPane(textArea);
+        JScrollPane scrollPane = new JScrollPane(transmissionLog);
 
         BorderLayout layout = new BorderLayout();
         layout.setHgap(10);
@@ -141,7 +36,7 @@ public class ChatServer {
         panel.setLayout(layout);  
         panel.setSize(300,600);
         panel.add(scrollPane, BorderLayout.CENTER);
-        panel.add(clientsLabel, BorderLayout.NORTH);
+        panel.add(numberOfClientsLabel, BorderLayout.NORTH);
         panel.setOpaque(true); 
 
         JFrame frame = new JFrame("Chat Server");
@@ -150,5 +45,112 @@ public class ChatServer {
         frame.pack();
         frame.setVisible(true);
         frame.setSize(300, 600);
+    }
+
+    private void initServerSocket() {
+        try {
+            ServerSocket serverSocket = new ServerSocket(DEFAULT_PORT);
+            log("Server Running at localhost:" + DEFAULT_PORT);
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                Connection clientConnection = new Connection(clientSocket);
+                synchronized(connectedClients){
+                    connectedClients.add(clientConnection);
+                    numberOfClientsLabel.setText("Clients connected: " + connectedClients.size());
+                }
+                clientConnection.start();
+            }
+        } catch (Exception e) {
+            System.err.println("Error occured creating server socket: " + e.getMessage());
+        }
+    }
+
+    private class Connection extends Thread {
+        protected Socket socket;
+        protected PrintWriter output;
+        protected BufferedReader input;
+        protected String username = "";
+        protected String roomId = "0";
+        protected boolean isConnected = true;
+
+        protected Connection(Socket socket) {
+            this.socket = socket;
+        }
+
+        public void run() {
+            try {
+                output = new PrintWriter(socket.getOutputStream(), true);
+                input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+                while (isConnected) {
+                    String inputLine = input.readLine();
+                    if(inputLine == null) {
+                        processLine("EXIT");
+                    }else{
+                        processLine(inputLine);
+                    }
+                }
+
+            } catch (IOException e) {
+                System.out.println("Error connecting, Terminating. " + e.getMessage());
+            }finally{
+                try{
+                    synchronized(connectedClients){
+                        connectedClients.remove(this);
+                        numberOfClientsLabel.setText("Clients connected: " + connectedClients.size());
+                    }
+                    if (input != null) input.close();
+                    if (output != null) output.close();
+                    if (socket != null) socket.close();
+                }catch(IOException e){
+                    System.out.println(e);
+                }
+            }
+        }
+
+        private void processLine(String inputLine) {
+            log("in: " + inputLine);
+            int indexOfProtocolContentSplit = inputLine.indexOf(' ');
+            String protocol = inputLine.substring(0, indexOfProtocolContentSplit >= 0 ? indexOfProtocolContentSplit : inputLine.length());
+            String content = inputLine.substring(indexOfProtocolContentSplit + 1, inputLine.length());
+            switch(protocol){
+                case "ENTER" : {
+                    username = content;
+                    output.println("ACK ENTER " + username);
+                    messageClients("ENTERING " + username);
+                    break;
+                }
+                case "EXIT" : {
+                    messageClients("EXITING " + username);
+                    isConnected = false;
+                    break;
+                }
+                case "JOIN" : {
+                    messageClients("EXITING " + username);
+                    roomId = content;
+                    output.println("ACK JOIN " + roomId);
+                    messageClients("ENTERING " + username);
+                    break;
+                }
+                case "TRANSMIT" : {
+                    messageClients("NEWMESSAGE " + username + " " + content);
+                    break;
+                }
+                default: break;
+            }
+        }
+
+        private void messageClients(String message){
+            log("out: " + message);
+            for(Connection client : connectedClients){
+                if(client != null && client.output != null && roomId.equals(client.roomId)){
+                    client.output.println(message);
+                }
+            }
+        }
+    }
+
+    private void log(String transmission){
+        transmissionLog.append(transmission + "\n");
     }
 }
