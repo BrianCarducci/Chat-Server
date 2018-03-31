@@ -13,48 +13,59 @@ import java.awt.*;
 import java.awt.event.*;
 
 public class ChatClient {
+    // default host port
     private static final int PORT = 1518;
+    // server hostname
     private String hostname;
+    // clients username
     private String username;
+    // socket connection
     private Socket socket = null;
-    private PrintWriter output = null;
-    private BufferedReader input = null;
+    // used for writing to server
+    private PrintWriter clientOutput = null;
+    // used for reading server input
+    private BufferedReader serverInput = null;
+    // messageBoard is where incoming messages will be displayed
     private JTextArea messageBoard = new JTextArea();
-    private JTextArea messageInput = new JTextArea(3,1);
+    // messageOutput is where all outgoing messages will be typed
+    private JTextArea messageOutput = new JTextArea(3,1);
 
-    public ChatClient(String hostname, String username) {
-        this.hostname = hostname;
-        this.username = username;
-    }
-
+    // Initialize the gui and then attempt to make a socket connection
+    // @Params: args[0] == hostname and args[0] == username
     public static void main(String[] args) {
         ChatClient chatClient = new ChatClient(args[0], args[1]);
         chatClient.initGUI();        
         chatClient.initClientSocket();
     }
 
+    public ChatClient(String hostname, String username) {
+        this.hostname = hostname;
+        this.username = username;
+    }
+
     private void initGUI(){
         messageBoard.setLineWrap(true);
         messageBoard.setEditable(false);
-
-        messageInput.setLineWrap(true);
-        messageInput.setWrapStyleWord(true);
-        messageInput.setEditable(true);
-        messageInput.setPreferredSize(new Dimension(300, 50));
-        messageInput.setCaretPosition(0);
-        messageInput.addKeyListener(new KeyAdapter() {
+        messageOutput.setLineWrap(true);
+        messageOutput.setWrapStyleWord(true);
+        messageOutput.setEditable(true);
+        messageOutput.setPreferredSize(new Dimension(300, 50));
+        messageOutput.setCaretPosition(0);
+        messageOutput.addKeyListener(new KeyAdapter() {
+            // send client message out to the server when the client presses
+            // enter key within the input field
             public void keyPressed(KeyEvent e) {
                 int keys = e.getKeyCode();
                 if (keys == KeyEvent.VK_ENTER) {
-                    output.println("TRANSMIT " + messageInput.getText().replace("\n", ""));
-                    messageInput.setText("");
-                    messageInput.setCaretPosition(0);
+                    clientOutput.println("TRANSMIT " + messageOutput.getText().replace("\n", ""));
+                    messageOutput.setText("");
+                    messageOutput.setCaretPosition(0);
                 }
             }
         });
 
         JScrollPane scrollPane = new JScrollPane(messageBoard);
-        JScrollPane chatScrollPane = new JScrollPane(messageInput);
+        JScrollPane chatScrollPane = new JScrollPane(messageOutput);
 
         JLabel roomLabel = new JLabel("Room: 0");
         roomLabel.setPreferredSize(new Dimension(100, 20));
@@ -62,10 +73,12 @@ public class ChatClient {
         JTextField roomInput = new JTextField();
         roomInput.setPreferredSize(new Dimension(100, 20));
         roomInput.addKeyListener(new KeyAdapter() {
+            // submits clients clients request for a room change to the server
+            // whe enter key pressed within the room field
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode()==KeyEvent.VK_ENTER) {
                     if(roomInput.getText().matches("^[a-zA-Z0-9_]+$")){
-                        output.println("JOIN " + roomInput.getText().replaceAll("\\s+",""));
+                        clientOutput.println("JOIN " + roomInput.getText().replaceAll("\\s+",""));
                         roomLabel.setText("Room: " + roomInput.getText().replaceAll("\\s+",""));
                     }else{
                         messageBoard.append("*Invalid* : Room must be an alphanumeric string\n");
@@ -78,11 +91,11 @@ public class ChatClient {
         JPanel roomPanel = new JPanel();
         roomPanel.add(roomLabel);
         roomPanel.add(roomInput);
-
+        // use a border layout for entire gui
         BorderLayout layout = new BorderLayout();
         layout.setHgap(10);
         layout.setVgap(10);
-
+        // default jpanel which will house our components
         JPanel panel = new JPanel();
         panel.setLayout(layout);
         panel.setSize(300,600);
@@ -90,11 +103,11 @@ public class ChatClient {
         panel.add(chatScrollPane, BorderLayout.SOUTH);
         panel.add(roomPanel, BorderLayout.NORTH);
         panel.setOpaque(true);
-
+        // get client screen specifications to set location of the gui
         GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
         GraphicsDevice defaultScreen = ge.getDefaultScreenDevice();
         Rectangle rect = defaultScreen.getDefaultConfiguration().getBounds();
-
+        // initialize jframe
         JFrame frame = new JFrame("Chat Client");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setContentPane(panel);
@@ -105,7 +118,7 @@ public class ChatClient {
         frame.addWindowListener(new java.awt.event.WindowAdapter() {
             public void windowClosing(WindowEvent windowEvent) {
                 try{
-                    output.println("EXIT");
+                    clientOutput.println("EXIT");
                 }catch(Exception e){
                     System.out.println(e);
                 }
@@ -113,25 +126,34 @@ public class ChatClient {
             }
         });
 
-        messageInput.requestFocus();
+        messageOutput.requestFocus();
     }
 
+    // Attempt to initialize the socket connection with the server.
+    // Assuming everything went well: (specific error handling will be logged
+    // to the console) 
+    // 1. We send an enter protocol to the server.
+    // 2a. We enter a while loop the continuously checks if the input line has 
+    //     anything to read. 
+    // 2b. If there is input, process the line. 
+    // 2c. If the input is null, something went wrong so break out of the loop,
+    //     send a disconnect transmission, and close all resources.
     public void initClientSocket() {
         try {
             socket = new Socket(hostname, PORT);
-            output = new PrintWriter(socket.getOutputStream(), true);
-            input = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            output.println("ENTER " + username);
+            clientOutput = new PrintWriter(socket.getOutputStream(), true);
+            serverInput = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            clientOutput.println("ENTER " + username);
 
             while(true){
-                if(input.ready()){
-                    String line = input.readLine();
+                if(serverInput.ready()){
+                    String line = serverInput.readLine();
                     if(line == null) break;
-                    processLine(line);
+                    processServerInput(line);
                 }
             }
-
-            output.println("EXIT");
+            clientOutput.println("EXIT");
+            
         } catch (UnknownHostException e) {
             System.out.println("Unknown host: " + hostname);
             System.out.println(e.getMessage());
@@ -140,8 +162,8 @@ public class ChatClient {
             System.out.println(e.getMessage());
         }finally{
             try {
-                if (output != null) output.close();
-                if (input != null) input.close();
+                if (clientOutput != null) clientOutput.close();
+                if (serverInput != null) serverInput.close();
                 if (socket != null) socket.close();
             } catch (Exception e) {
                 System.out.println("Error closing the streams.");
@@ -149,7 +171,10 @@ public class ChatClient {
         }
     }
 
-    private void processLine(String inputLine){
+    // Process the input lines coming from the server. Read the if statements to understand
+    // the logic. substring and indexOf are used to skip over the protocol contained in the 
+    // message string.
+    private void processServerInput(String inputLine){
         if(inputLine.startsWith("ENTERING")){
             String name = inputLine.substring(inputLine.indexOf(' ') + 1, inputLine.length());
             addToMessageBoard(name + " has entered the room.");
@@ -168,6 +193,7 @@ public class ChatClient {
         }
     }
 
+    // append a message to the clients message board.
     private void addToMessageBoard(String message){
         messageBoard.append(message + "\n");
     }
